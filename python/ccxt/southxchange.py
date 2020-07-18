@@ -7,7 +7,7 @@ from ccxt.base.exchange import Exchange
 import hashlib
 
 
-class southxchange (Exchange):
+class southxchange(Exchange):
 
     def describe(self):
         return self.deep_extend(super(southxchange, self).describe(), {
@@ -42,9 +42,11 @@ class southxchange (Exchange):
                     'post': [
                         'cancelMarketOrders',
                         'cancelOrder',
+                        'getOrder',
                         'generatenewaddress',
                         'listOrders',
                         'listBalances',
+                        'listTransactions',
                         'placeOrder',
                         'withdraw',
                     ],
@@ -54,13 +56,14 @@ class southxchange (Exchange):
                 'trading': {
                     'tierBased': False,
                     'percentage': True,
-                    'maker': 0.2 / 100,
-                    'taker': 0.2 / 100,
+                    'maker': 0.1 / 100,
+                    'taker': 0.3 / 100,
                 },
             },
             'commonCurrencies': {
                 'SMT': 'SmartNode',
                 'MTC': 'Marinecoin',
+                'BHD': 'Bithold',
             },
         })
 
@@ -74,7 +77,7 @@ class southxchange (Exchange):
             base = self.safe_currency_code(baseId)
             quote = self.safe_currency_code(quoteId)
             symbol = base + '/' + quote
-            id = symbol
+            id = baseId + '/' + quoteId
             result.append({
                 'id': id,
                 'symbol': symbol,
@@ -84,6 +87,8 @@ class southxchange (Exchange):
                 'quoteId': quoteId,
                 'active': None,
                 'info': market,
+                'precision': self.precision,
+                'limits': self.limits,
             })
         return result
 
@@ -167,9 +172,7 @@ class southxchange (Exchange):
         return self.parse_ticker(response, market)
 
     def parse_trade(self, trade, market):
-        timestamp = self.safe_integer(trade, 'At')
-        if timestamp is not None:
-            timestamp = timestamp * 1000
+        timestamp = self.safe_timestamp(trade, 'At')
         price = self.safe_float(trade, 'Price')
         amount = self.safe_float(trade, 'Amount')
         cost = None
@@ -223,13 +226,12 @@ class southxchange (Exchange):
             if remaining is not None:
                 filled = amount - remaining
         type = 'limit'
-        side = self.safe_string(order, 'Type')
-        if side is not None:
-            side = side.lower()
+        side = self.safe_string_lower(order, 'Type')
         id = self.safe_string(order, 'Code')
         result = {
             'info': order,
             'id': id,
+            'clientOrderId': None,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
             'lastTradeTimestamp': None,
@@ -243,6 +245,8 @@ class southxchange (Exchange):
             'remaining': remaining,
             'status': status,
             'fee': None,
+            'average': None,
+            'trades': None,
         }
         return result
 

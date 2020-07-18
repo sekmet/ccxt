@@ -20,7 +20,7 @@ module.exports = class foxbit extends Exchange {
             'rateLimit': 1000,
             'version': 'v1',
             'urls': {
-                'logo': 'https://user-images.githubusercontent.com/1294454/27991413-11b40d42-647f-11e7-91ee-78ced874dd09.jpg',
+                'logo': 'https://user-images.githubusercontent.com/51840849/87443320-01c0d080-c5fe-11ea-92e2-4ef56d32b026.jpg',
                 'api': {
                     'public': 'https://api.blinktrade.com/api',
                     'private': 'https://api.blinktrade.com/tapi',
@@ -148,10 +148,7 @@ module.exports = class foxbit extends Exchange {
     }
 
     parseTrade (trade, market = undefined) {
-        let timestamp = this.safeInteger (trade, 'date');
-        if (timestamp !== undefined) {
-            timestamp *= 1000;
-        }
+        const timestamp = this.safeTimestamp (trade, 'date');
         const id = this.safeString (trade, 'tid');
         let symbol = undefined;
         if (market !== undefined) {

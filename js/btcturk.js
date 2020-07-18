@@ -23,7 +23,7 @@ module.exports = class btcturk extends Exchange {
                 '1d': '1d',
             },
             'urls': {
-                'logo': 'https://user-images.githubusercontent.com/1294454/27992709-18e15646-64a3-11e7-9fa2-b0950ec7712f.jpg',
+                'logo': 'https://user-images.githubusercontent.com/51840849/87153926-efbef500-c2c0-11ea-9842-05b63612c4b9.jpg',
                 'api': 'https://www.btcturk.com/api',
                 'www': 'https://www.btcturk.com',
                 'doc': 'https://github.com/BTCTrader/broker-api-docs',
@@ -52,7 +52,7 @@ module.exports = class btcturk extends Exchange {
             'fees': {
                 'trading': {
                     'maker': 0.002 * 1.18,
-                    'taker': 0.0035 * 1.18,
+                    'taker': 0.003 * 1.18,
                 },
             },
         });
@@ -134,10 +134,7 @@ module.exports = class btcturk extends Exchange {
             'pairSymbol': market['id'],
         };
         const response = await this.publicGetOrderbook (this.extend (request, params));
-        let timestamp = this.safeInteger (response, 'timestamp');
-        if (timestamp !== undefined) {
-            timestamp *= 1000;
-        }
+        const timestamp = this.safeTimestamp (response, 'timestamp');
         return this.parseOrderBook (response, timestamp);
     }
 
@@ -146,10 +143,7 @@ module.exports = class btcturk extends Exchange {
         if (market) {
             symbol = market['symbol'];
         }
-        let timestamp = this.safeInteger (ticker, 'timestamp');
-        if (timestamp !== undefined) {
-            timestamp *= 1000;
-        }
+        const timestamp = this.safeTimestamp (ticker, 'timestamp');
         const last = this.safeFloat (ticker, 'last');
         return {
             'symbol': symbol,
@@ -201,10 +195,7 @@ module.exports = class btcturk extends Exchange {
     }
 
     parseTrade (trade, market = undefined) {
-        let timestamp = this.safeInteger (trade, 'date');
-        if (timestamp !== undefined) {
-            timestamp *= 1000;
-        }
+        const timestamp = this.safeTimestamp (trade, 'date');
         const id = this.safeString (trade, 'tid');
         const price = this.safeFloat (trade, 'price');
         const amount = this.safeFloat (trade, 'amount');
@@ -246,10 +237,9 @@ module.exports = class btcturk extends Exchange {
         return this.parseTrades (response, market, since, limit);
     }
 
-    parseOHLCV (ohlcv, market = undefined, timeframe = '1d', since = undefined, limit = undefined) {
-        const timestamp = this.parse8601 (this.safeString (ohlcv, 'Time'));
+    parseOHLCV (ohlcv, market = undefined) {
         return [
-            timestamp,
+            this.parse8601 (this.safeString (ohlcv, 'Time')),
             this.safeFloat (ohlcv, 'Open'),
             this.safeFloat (ohlcv, 'High'),
             this.safeFloat (ohlcv, 'Low'),

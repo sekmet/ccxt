@@ -91,6 +91,7 @@ module.exports = class mercado extends Exchange {
                 'BCH/BRL': { 'id': 'BRLBCH', 'symbol': 'BCH/BRL', 'base': 'BCH', 'quote': 'BRL', 'precision': { 'amount': 8, 'price': 5 }, 'suffix': 'BCash' },
                 'XRP/BRL': { 'id': 'BRLXRP', 'symbol': 'XRP/BRL', 'base': 'XRP', 'quote': 'BRL', 'precision': { 'amount': 8, 'price': 5 }, 'suffix': 'Ripple' },
                 'ETH/BRL': { 'id': 'BRLETH', 'symbol': 'ETH/BRL', 'base': 'ETH', 'quote': 'BRL', 'precision': { 'amount': 8, 'price': 5 }, 'suffix': 'Ethereum' },
+                'USDC/BRL': { 'id': 'BRLUSDC', 'symbol': 'USDC/BRL', 'base': 'USDC', 'quote': 'BRL', 'precision': { 'amount': 8, 'price': 5 }, 'suffix': 'USDC' },
             },
             'fees': {
                 'trading': {
@@ -119,10 +120,7 @@ module.exports = class mercado extends Exchange {
         };
         const response = await this.publicGetCoinTicker (this.extend (request, params));
         const ticker = this.safeValue (response, 'ticker', {});
-        let timestamp = this.safeInteger (ticker, 'date');
-        if (timestamp !== undefined) {
-            timestamp *= 1000;
-        }
+        const timestamp = this.safeTimestamp (ticker, 'date');
         const last = this.safeFloat (ticker, 'last');
         return {
             'symbol': symbol,
@@ -149,10 +147,7 @@ module.exports = class mercado extends Exchange {
     }
 
     parseTrade (trade, market = undefined) {
-        let timestamp = this.safeInteger (trade, 'date');
-        if (timestamp !== undefined) {
-            timestamp *= 1000;
-        }
+        const timestamp = this.safeTimestamp (trade, 'date');
         let symbol = undefined;
         if (market !== undefined) {
             symbol = market['symbol'];
@@ -342,10 +337,7 @@ module.exports = class mercado extends Exchange {
         if (market !== undefined) {
             symbol = market['symbol'];
         }
-        let timestamp = this.safeInteger (order, 'created_timestamp');
-        if (timestamp !== undefined) {
-            timestamp = timestamp * 1000;
-        }
+        const timestamp = this.safeTimestamp (order, 'created_timestamp');
         const fee = {
             'cost': this.safeFloat (order, 'fee'),
             'currency': market['quote'],
@@ -357,13 +349,11 @@ module.exports = class mercado extends Exchange {
         const filled = this.safeFloat (order, 'executed_quantity');
         const remaining = amount - filled;
         const cost = filled * average;
-        let lastTradeTimestamp = this.safeInteger (order, 'updated_timestamp');
-        if (lastTradeTimestamp !== undefined) {
-            lastTradeTimestamp = lastTradeTimestamp * 1000;
-        }
+        const lastTradeTimestamp = this.safeTimestamp (order, 'updated_timestamp');
         return {
             'info': order,
             'id': id,
+            'clientOrderId': undefined,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
             'lastTradeTimestamp': lastTradeTimestamp,
@@ -410,17 +400,17 @@ module.exports = class mercado extends Exchange {
         if (code === 'BRL') {
             const account_ref = ('account_ref' in params);
             if (!account_ref) {
-                throw new ExchangeError (this.id + ' requires account_ref parameter to withdraw ' + code);
+                throw new ArgumentsRequired (this.id + ' requires account_ref parameter to withdraw ' + code);
             }
         } else if (code !== 'LTC') {
             const tx_fee = ('tx_fee' in params);
             if (!tx_fee) {
-                throw new ExchangeError (this.id + ' requires tx_fee parameter to withdraw ' + code);
+                throw new ArgumentsRequired (this.id + ' requires tx_fee parameter to withdraw ' + code);
             }
             if (code === 'XRP') {
                 if (tag === undefined) {
                     if (!('destination_tag' in params)) {
-                        throw new ExchangeError (this.id + ' requires a tag argument or destination_tag parameter to withdraw ' + code);
+                        throw new ArgumentsRequired (this.id + ' requires a tag argument or destination_tag parameter to withdraw ' + code);
                     }
                 } else {
                     request['destination_tag'] = tag;
@@ -434,13 +424,9 @@ module.exports = class mercado extends Exchange {
         };
     }
 
-    parseOHLCV (ohlcv, market = undefined, timeframe = '1m', since = undefined, limit = undefined) {
-        let timestamp = this.safeInteger (ohlcv, 'timestamp');
-        if (timestamp !== undefined) {
-            timestamp = timestamp * 1000;
-        }
+    parseOHLCV (ohlcv, market = undefined) {
         return [
-            timestamp,
+            this.safeTimestamp (ohlcv, 'timestamp'),
             this.safeFloat (ohlcv, 'open'),
             this.safeFloat (ohlcv, 'high'),
             this.safeFloat (ohlcv, 'low'),

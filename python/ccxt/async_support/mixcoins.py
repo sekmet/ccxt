@@ -8,7 +8,7 @@ import hashlib
 from ccxt.base.errors import ExchangeError
 
 
-class mixcoins (Exchange):
+class mixcoins(Exchange):
 
     def describe(self):
         return self.deep_extend(super(mixcoins, self).describe(), {
@@ -22,7 +22,7 @@ class mixcoins (Exchange):
                 'CORS': False,
             },
             'urls': {
-                'logo': 'https://user-images.githubusercontent.com/1294454/30237212-ed29303c-9535-11e7-8af8-fcd381cfa20c.jpg',
+                'logo': 'https://user-images.githubusercontent.com/51840849/87460810-1dd06c00-c616-11ea-9276-956f400d6ffa.jpg',
                 'api': 'https://mixcoins.com/api',
                 'www': 'https://mixcoins.com',
                 'doc': 'https://mixcoins.com/help/api/',
@@ -113,9 +113,7 @@ class mixcoins (Exchange):
         }
 
     def parse_trade(self, trade, market=None):
-        timestamp = self.safe_integer(trade, 'date')
-        if timestamp is not None:
-            timestamp *= 1000
+        timestamp = self.safe_timestamp(trade, 'date')
         symbol = None
         if market is not None:
             symbol = market['symbol']

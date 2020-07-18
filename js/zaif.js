@@ -244,10 +244,7 @@ module.exports = class zaif extends Exchange {
     parseTrade (trade, market = undefined) {
         let side = this.safeString (trade, 'trade_type');
         side = (side === 'bid') ? 'buy' : 'sell';
-        let timestamp = this.safeInteger (trade, 'date');
-        if (timestamp !== undefined) {
-            timestamp *= 1000;
-        }
+        const timestamp = this.safeTimestamp (trade, 'date');
         const id = this.safeString2 (trade, 'id', 'tid');
         const price = this.safeFloat (trade, 'price');
         const amount = this.safeFloat (trade, 'amount');
@@ -327,12 +324,19 @@ module.exports = class zaif extends Exchange {
     }
 
     parseOrder (order, market = undefined) {
+        //
+        //     {
+        //         "currency_pair": "btc_jpy",
+        //         "action": "ask",
+        //         "amount": 0.03,
+        //         "price": 56000,
+        //         "timestamp": 1402021125,
+        //         "comment" : "demo"
+        //     }
+        //
         let side = this.safeString (order, 'action');
         side = (side === 'bid') ? 'buy' : 'sell';
-        let timestamp = this.safeInteger (order, 'timestamp');
-        if (timestamp !== undefined) {
-            timestamp *= 1000;
-        }
+        const timestamp = this.safeTimestamp (order, 'timestamp');
         if (!market) {
             const marketId = this.safeString (order, 'currency_pair');
             if (marketId in this.markets_by_id) {
@@ -354,6 +358,7 @@ module.exports = class zaif extends Exchange {
         }
         return {
             'id': id,
+            'clientOrderId': undefined,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
             'lastTradeTimestamp': undefined,
@@ -368,6 +373,8 @@ module.exports = class zaif extends Exchange {
             'remaining': undefined,
             'trades': undefined,
             'fee': undefined,
+            'info': order,
+            'average': undefined,
         };
     }
 
@@ -481,7 +488,7 @@ module.exports = class zaif extends Exchange {
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
 
-    handleErrors (httpCode, reason, url, method, headers, body, response) {
+    handleErrors (httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody) {
         if (response === undefined) {
             return;
         }
@@ -491,15 +498,8 @@ module.exports = class zaif extends Exchange {
         const feedback = this.id + ' ' + body;
         const error = this.safeString (response, 'error');
         if (error !== undefined) {
-            const exact = this.exceptions['exact'];
-            if (error in exact) {
-                throw new exact[error] (feedback);
-            }
-            const broad = this.exceptions['broad'];
-            const broadKey = this.findBroadlyMatchedKey (broad, error);
-            if (broadKey !== undefined) {
-                throw new broad[broadKey] (feedback);
-            }
+            this.throwExactlyMatchedException (this.exceptions['exact'], error, feedback);
+            this.throwBroadlyMatchedException (this.exceptions['broad'], error, feedback);
             throw new ExchangeError (feedback); // unknown message
         }
         const success = this.safeValue (response, 'success', true);

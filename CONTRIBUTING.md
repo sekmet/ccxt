@@ -48,6 +48,12 @@ If you found a security issue or a critical vulnerability and reporting it in pu
   - `/build/*` (these are generated automatically)
   - `/php/*` (except for base classes)
   - `/python/*` (except for base classes)
+  - `/ccxt.js`
+  - `/README.md` (exchange lists are generated automatically)
+  - `/package.json`
+  - `/package.lock`
+  - `/wiki/*` (except for real edits, exchange lists are generated automatically)
+  - `/dist/ccxt.browser.js` (this is also browserified automatically)
 
 
   These files are generated ([explained below](https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#multilanguage-support)) and will be overwritten upon build. Please don't commit them to avoid bloating the repository which is already quite large. Most often, you have to commit just one single source file to submit an edit to the implementation of an exchange.
@@ -57,19 +63,20 @@ If you found a security issue or a critical vulnerability and reporting it in pu
 
 ## Pending Tasks
 
-Below is a list of functionality we would like to have implemented in the library in the first place. Most of these tasks are already in progress, implemented for some exchanges, but not all of them:
+Below is a list of functionality we would like to have implemented and fully **unified** in the library in the first place at this time. Most of these tasks are already in progress, implemented for some exchanges, but not all of them:
 
-- Unified fetchOrder
-- Unified fetchOrders, fetchOpenOrders, fetchClosedOrders
-- Unified fetchMyTrades, fetchOrderTrades
-- Unified fetchDepositAddress, createDepositAddress
-- Unified withdraw
-- Unified fees
-- Unified fetchTransactions, fetchDeposits, fetchWithdrawals
-- Improved proxy support
-- WebSocket interfaces:
-  - Pub: Methods for trading and private calls where supported
-  - Sub: Real-time balance, orderbooks and other properties with each exchange
+- Margin trading
+- Leverage
+- Derivatives (futures, options)
+- Main account / subaccounts
+- Conditional orders (stop loss, take profit)
+- `transfer` between subaccounts and main account
+- `fetchTransfer`
+- `fetchTransfers`
+- `fetchLedger`
+- `fetchPositions`
+- `closePosition`
+- `closePositions`
 
 If you want to contribute by submitting partial implementations be sure to look up examples of how it's done inside the library (where implemented already) and copy the adopted practices.
 
@@ -92,6 +99,8 @@ The easiest way is to use Docker to run an isolated build & test enviroment with
 docker-compose run --rm ccxt
 ```
 
+You don't need the Docker image if you're not going to develop CCXT. If you just want to use CCXT – just install it as a regular package.
+
 That builds a container and opens a shell, where the `npm run build` and `node run-tests` commands should simply work out of the box.
 
 The CCXT folder is mapped inside of the container, except the `node_modules` folder — the container would have its own ephemeral copy — so that won't mess up your locally installed modules. This means that you can edit sources on your host machine using your favorite editor and build/test them in the running container.
@@ -101,7 +110,7 @@ This way you can keep the build tools and processes isolated, not having to work
 If you choose the hard way, here is the list of the dependencies you will need. It may be incomplete and outdated, so you may want to look into the [`Dockerfile`](https://github.com/ccxt/ccxt/blob/master/Dockerfile) and [`.travis.yml`](https://github.com/ccxt/ccxt/blob/master/.travis.yml) scripts for the list of commands we use to install the state-of-the-art dependencies needed to build and test CCXT.
 
 - [Node.js](https://nodejs.org/en/download/) 8+
-- [Python](https://www.python.org/downloads/) 3.5.3+ and Python 2.7+
+- [Python](https://www.python.org/downloads/) 3.5.3+
   - tox (`brew install tox` or `pip install tox`)
   - requests (`pip install requests`)
   - aiohttp (`pip install aiohttp`)
@@ -111,7 +120,6 @@ If you choose the hard way, here is the list of the dependencies you will need. 
   - mbstring
   - PCRE
   - bcmath (php<7.1)
-- [Pandoc](https://pandoc.org/installing.html) 1.19+
 
 ## What You Need To Know
 
@@ -127,7 +135,6 @@ The contents of the repository are structured as follows:
 /.gitignore                # ignore it
 /.npmignore                # files to exclude from the NPM package
 /.travis.yml               # a YAML config for travis-ci (continuous integration)
-/CHANGELOG.md              # self-explanatory
 /CONTRIBUTING.md           # this file
 /LICENSE.txt               # MIT
 /README.md                 # master markdown for GitHub, npmjs.com, npms.io, yarn and others
@@ -147,7 +154,7 @@ The contents of the repository are structured as follows:
 /python/async/__init__.py  # asynchronous version of the ccxt.library for Python 3.5.3+ asyncio
 /python/base/              # base code for the Python version of the ccxt library
 /python/MANIFEST.in        # a PyPI-package file listing extra package files (license, configs, etc...)
-/python/README.rst         # generated reStructuredText for PyPI
+/python/README.md          # a copy of README.md for PyPI
 /python/setup.cfg          # wheels config file for the Python package
 /python/setup.py           # pip/setuptools script (build/install) for ccxt in Python
 /python/tox.ini            # tox config for Python
@@ -163,9 +170,9 @@ The contents of the repository are structured as follows:
 
 ### Multilanguage Support
 
-The ccxt library is available in three different languages (more to come). We encourage developers to design *portable* code, so that a single-language user can read code in other languages and understand it easily. This helps the adoption of the library. The main goal is to provide a generalized, unified, consistent and robust interface to as many existing cryptocurrency exchanges as possible.
+The ccxt library is available in three different languages (more to come). We encourage developers to design *portable* code, so that a single-language user could read the code in other languages and understand it easily. This helps the adoption of the library. The main goal is to provide a generalized, unified, consistent and robust interface to as many existing cryptocurrency exchanges as possible.
 
-At first, all language-specific versions were developed in parallel, but separately from each other. But when it became too hard to maintain and keep the code consistent among all supported languages we decided to switch to what we call a *source/generated* process. There is now a single source version in one language, that is JavaScript. Other language-specific versions are syntactically derived (transpiled, generated) automatically from the source version. But it doesn't mean that you have to be a JS coder to contribute. The portability principle allows Python and PHP devs to effectively participate in developing the source version as well.
+At first, all language-specific versions were developed in parallel, but separately from each other. But when it became too hard to maintain and keep the code consistent among all supported languages we have decided to switch to what we call a *source/generated* process. There is now a single source version in one language, that is JavaScript. Other language-specific versions are syntactically derived (transpiled, generated) automatically from the source version. But it doesn't mean that you have to be a JS coder to contribute. The portability principle allows Python and PHP devs to effectively participate in developing the source version as well.
 
 The module entry points are:
 - `./python/__init__.py` for the Python pip package
@@ -268,7 +275,7 @@ And structurally:
 
 Most of exchanges' API endpoints will require an exchange-specific market symbol or trading pair or instrument to be specified in the request.
 
-**We don't send unified symbols to exchanges directly!** They are not interchangeable! There is a significant difference between an *exchange-specific market-ids* and *unified symbols*! This is explained in the Manual, here:
+**We don't send unified symbols to exchanges directly!** They are not interchangeable! There is a significant difference between *exchange-specific market-ids* and *unified symbols*! This is explained in the Manual, here:
 
 - https://github.com/ccxt/ccxt/wiki/Manual#markets
 - https://github.com/ccxt/ccxt/wiki/Manual#symbols-and-market-ids
@@ -402,7 +409,7 @@ In JavaScript, dictionary keys can be accessed in two notations:
 
 Both work almost identically, and one is implicitly converted to another upon executing the JavaScript code.
 
-While the above does work in JavaScript, it will not work in Python or PHP. In most languages, associative dictionary keys are not treated in the same was as properties. Therefore, in Python `object.key` is not the same as `object['key']`. In PHP `$object->key` is not the same as `$object['key']` as well. Languages that differentiate between associative keys and properties use different notations for the two.
+While the above does work in JavaScript, it will not work in Python or PHP. In most languages, associative dictionary keys are not treated in the same way as properties. Therefore, in Python `object.key` is not the same as `object['key']`. In PHP `$object->key` is not the same as `$object['key']` as well. Languages that differentiate between associative keys and properties use different notations for the two.
 
 To keep the code transpileable, please, remeber this simple rule: *always use the single-quoted string key notation `object['key']` for accessing all associative dictionary keys in all languages everywhere throughout this library!*
 
@@ -444,6 +451,14 @@ if some_dictionary.get('nonExistentKey'):
 
 Most languages will not tolerate an attempt to access a non-existent key in an object.
 
+For the above reasons, please, **never do this** in the transpiled JS files:
+
+```JavaScript
+// JavaScript
+const value = object['key'] || other_value; // will not work in Python or PHP!
+if (object['key'] || other_value) { /* will not work in Python or PHP! */ }
+```
+
 Therefore we have a family of `safe*` functions:
 
 - `safeInteger (object, key)`, `safeInteger2 (object, key1, key2)`
@@ -477,6 +492,70 @@ Or:
 ```JavaScript
 if ('foo' in params) {
 }
+```
+
+#### Using Base Class Cryptography Methods For Authentication
+
+Do not reinvent the wheel. Always use base-class methods for cryptography.
+
+The CCXT library supports the following authentication algorithms and cryptography algorithms:
+
+- HMAC
+- JWT (JSON Web Token)
+- RSA
+- ECDSA Elliptic Curve Cryptography
+  - NIST P256
+  - secp256k1
+- OTP 2FA (one-time password 2-factor authentication)
+
+The base `Exchange` class offers several methods that are key to practically all cryptography in this lib. Derived exchange implementations must not use external dependencies for cryptography, everything should be done with base methods only.
+
+- `hash (message, hash = 'md5', digest = 'hex')`
+- `hmac (message, secret, hash = 'sha256', digest = 'hex')`
+- `jwt (message, secret, hash = 'HS256')`
+- `rsa (message, secret, alg = 'RS256')`
+- `ecdsa (request, secret, algorithm = 'p256', hash = undefined)`
+- `totp (secret)`
+- `stringToBase64()`, `base64ToBinary()`, `binaryToBase64()`...
+
+The `hash()` method supports the following `hash` algorithms:
+
+- `'md5'`
+- `'sha1'`
+- `'sha3'`
+- `'sha256'`
+- `'sha384'`
+- `'sha512'`
+- `'keccak'`
+
+The `digest` encoding argument accepts the following values:
+
+- `'hex'`
+- `'binary'`
+
+The `hmac()` method also supports `'base64'` for the `digest` argument. This is for `hmac()` only, other implementations should use `'binary'` with `binaryToBase64()`.
+
+#### Timestamps
+
+**All timestamps throughout all unified structures within this library are integer timestamp _in milliseconds_!**
+
+In order to convert to milliseconds timestamps, CCXT implementes the following methods:
+
+```JavaScript
+const data = {
+   'unixTimestampInSeconds': 1565242530,
+   'unixTimestampInMilliseconds': 1565242530165,
+   'stringInSeconds': '1565242530',
+};
+
+// convert to integer if the underlying value is already in milliseconds
+const timestamp = this.safeInteger (data, 'unixTimestampInMilliseconds'); // === 1565242530165
+
+// convert to integer and multiply by a thousand if the value is a UNIX timestamp in seconds
+const timestamp = this.safeTimestamp (data, 'unixTimestampInSeconds'); // === 1565242530000
+
+// convert to integer and multiply by a thousand if the value is in seconds
+const timestamp = this.safeTimestamp (data, 'stringInSeconds'); // === 1565242530000
 ```
 
 #### Working With Array Lengths

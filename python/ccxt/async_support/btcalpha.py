@@ -7,11 +7,12 @@ from ccxt.async_support.base.exchange import Exchange
 import math
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import AuthenticationError
+from ccxt.base.errors import InsufficientFunds
 from ccxt.base.errors import InvalidOrder
 from ccxt.base.errors import DDoSProtection
 
 
-class btcalpha (Exchange):
+class btcalpha(Exchange):
 
     def describe(self):
         return self.deep_extend(super(btcalpha, self).describe(), {
@@ -107,6 +108,15 @@ class btcalpha (Exchange):
                     },
                 },
             },
+            'commonCurrencies': {
+                'CBC': 'Cashbery',
+            },
+            'exceptions': {
+                'exact': {},
+                'broad': {
+                    'Out of balance': InsufficientFunds,  # {"date":1570599531.4814300537,"error":"Out of balance -9.99243661 BTC"}
+                },
+            },
         })
 
     async def fetch_markets(self, params={}):
@@ -146,6 +156,8 @@ class btcalpha (Exchange):
                     },
                 },
                 'info': market,
+                'baseId': None,
+                'quoteId': None,
             })
         return result
 
@@ -157,8 +169,16 @@ class btcalpha (Exchange):
         if limit:
             request['limit_sell'] = limit
             request['limit_buy'] = limit
-        reponse = await self.publicGetOrderbookPairName(self.extend(request, params))
-        return self.parse_order_book(reponse, None, 'buy', 'sell', 'price', 'amount')
+        response = await self.publicGetOrderbookPairName(self.extend(request, params))
+        return self.parse_order_book(response, None, 'buy', 'sell', 'price', 'amount')
+
+    def parse_bids_asks(self, bidasks, priceKey=0, amountKey=1):
+        result = []
+        for i in range(0, len(bidasks)):
+            bidask = bidasks[i]
+            if bidask:
+                result.append(self.parse_bid_ask(bidask, priceKey, amountKey))
+        return result
 
     def parse_trade(self, trade, market=None):
         symbol = None
@@ -166,9 +186,7 @@ class btcalpha (Exchange):
             market = self.safe_value(self.marketsById, trade['pair'])
         if market is not None:
             symbol = market['symbol']
-        timestamp = self.safe_integer(trade, 'timestamp')
-        if timestamp is not None:
-            timestamp *= 1000
+        timestamp = self.safe_timestamp(trade, 'timestamp')
         price = self.safe_float(trade, 'price')
         amount = self.safe_float(trade, 'amount')
         cost = None
@@ -206,14 +224,24 @@ class btcalpha (Exchange):
         trades = await self.publicGetExchanges(self.extend(request, params))
         return self.parse_trades(trades, market, since, limit)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='5m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
+        #
+        #     {
+        #         "time":1591296000,
+        #         "open":0.024746,
+        #         "close":0.024728,
+        #         "low":0.024728,
+        #         "high":0.024753,
+        #         "volume":16.624
+        #     }
+        #
         return [
-            ohlcv['time'] * 1000,
-            ohlcv['open'],
-            ohlcv['high'],
-            ohlcv['low'],
-            ohlcv['close'],
-            ohlcv['volume'],
+            self.safe_timestamp(ohlcv, 'time'),
+            self.safe_float(ohlcv, 'open'),
+            self.safe_float(ohlcv, 'high'),
+            self.safe_float(ohlcv, 'low'),
+            self.safe_float(ohlcv, 'close'),
+            self.safe_float(ohlcv, 'volume'),
         ]
 
     async def fetch_ohlcv(self, symbol, timeframe='5m', since=None, limit=None, params={}):
@@ -228,6 +256,13 @@ class btcalpha (Exchange):
         if since is not None:
             request['since'] = int(since / 1000)
         response = await self.publicGetChartsPairTypeChart(self.extend(request, params))
+        #
+        #     [
+        #         {"time":1591296000,"open":0.024746,"close":0.024728,"low":0.024728,"high":0.024753,"volume":16.624},
+        #         {"time":1591295700,"open":0.024718,"close":0.02475,"low":0.024711,"high":0.02475,"volume":31.645},
+        #         {"time":1591295400,"open":0.024721,"close":0.024717,"low":0.024711,"high":0.02473,"volume":65.071}
+        #     ]
+        #
         return self.parse_ohlcvs(response, market, timeframe, since, limit)
 
     async def fetch_balance(self, params={}):
@@ -258,9 +293,7 @@ class btcalpha (Exchange):
             market = self.safe_value(self.marketsById, order['pair'])
         if market is not None:
             symbol = market['symbol']
-        timestamp = self.safe_integer(order, 'date')
-        if timestamp is not None:
-            timestamp *= 1000
+        timestamp = self.safe_timestamp(order, 'date')
         price = self.safe_float(order, 'price')
         amount = self.safe_float(order, 'amount')
         status = self.parse_order_status(self.safe_string(order, 'status'))
@@ -268,8 +301,18 @@ class btcalpha (Exchange):
         trades = self.safe_value(order, 'trades', [])
         trades = self.parse_trades(trades, market)
         side = self.safe_string_2(order, 'my_side', 'type')
+        filled = None
+        numTrades = len(trades)
+        if numTrades > 0:
+            filled = 0.0
+            for i in range(0, numTrades):
+                filled = self.sum(filled, trades[i]['amount'])
+        remaining = None
+        if (amount is not None) and (amount > 0) and (filled is not None):
+            remaining = max(0, amount - filled)
         return {
             'id': id,
+            'clientOrderId': None,
             'datetime': self.iso8601(timestamp),
             'timestamp': timestamp,
             'status': status,
@@ -279,11 +322,13 @@ class btcalpha (Exchange):
             'price': price,
             'cost': None,
             'amount': amount,
-            'filled': None,
-            'remaining': None,
+            'filled': filled,
+            'remaining': remaining,
             'trades': trades,
             'fee': None,
             'info': order,
+            'lastTradeTimestamp': None,
+            'average': None,
         }
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
@@ -298,7 +343,11 @@ class btcalpha (Exchange):
         response = await self.privatePostOrder(self.extend(request, params))
         if not response['success']:
             raise InvalidOrder(self.id + ' ' + self.json(response))
-        return self.parse_order(response, market)
+        order = self.parse_order(response, market)
+        amount = order['amount'] if (order['amount'] > 0) else amount
+        return self.extend(order, {
+            'amount': amount,
+        })
 
     async def cancel_order(self, id, symbol=None, params={}):
         request = {
@@ -377,14 +426,21 @@ class btcalpha (Exchange):
             headers['X-NONCE'] = str(self.nonce())
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
-    def handle_errors(self, code, reason, url, method, headers, body, response):
+    def handle_errors(self, code, reason, url, method, headers, body, response, requestHeaders, requestBody):
         if response is None:
             return  # fallback to default error handler
-        if code < 400:
-            return  # fallback to default error handler
-        message = self.id + ' ' + self.safe_value(response, 'detail', body)
+        #
+        #     {"date":1570599531.4814300537,"error":"Out of balance -9.99243661 BTC"}
+        #
+        error = self.safe_string(response, 'error')
+        feedback = self.id + ' ' + body
+        if error is not None:
+            self.throw_exactly_matched_exception(self.exceptions['exact'], error, feedback)
+            self.throw_broadly_matched_exception(self.exceptions['broad'], error, feedback)
         if code == 401 or code == 403:
-            raise AuthenticationError(message)
+            raise AuthenticationError(feedback)
         elif code == 429:
-            raise DDoSProtection(message)
-        raise ExchangeError(message)
+            raise DDoSProtection(feedback)
+        if code < 400:
+            return
+        raise ExchangeError(feedback)

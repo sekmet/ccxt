@@ -7,7 +7,7 @@ from ccxt.base.exchange import Exchange
 from ccxt.base.errors import ExchangeError
 
 
-class flowbtc (Exchange):
+class flowbtc(Exchange):
 
     def describe(self):
         return self.deep_extend(super(flowbtc, self).describe(), {
@@ -17,10 +17,10 @@ class flowbtc (Exchange):
             'version': 'v1',
             'rateLimit': 1000,
             'has': {
-                'CORS': True,
+                'CORS': False,
             },
             'urls': {
-                'logo': 'https://user-images.githubusercontent.com/1294454/28162465-cd815d4c-67cf-11e7-8e57-438bea0523a2.jpg',
+                'logo': 'https://user-images.githubusercontent.com/51840849/87443317-01c0d080-c5fe-11ea-95c2-9ebe1a8fafd9.jpg',
                 'api': 'https://publicapi.flowbtc.com.br',
                 'www': 'https://www.flowbtc.com.br',
                 'doc': 'https://www.flowbtc.com.br/api.html',
@@ -108,6 +108,7 @@ class flowbtc (Exchange):
                     },
                 },
                 'info': market,
+                'active': None,
             }
         return result
 
@@ -168,7 +169,7 @@ class flowbtc (Exchange):
         }
 
     def parse_trade(self, trade, market):
-        timestamp = self.safe_integer(trade, 'unixtime') * 1000
+        timestamp = self.safe_timestamp(trade, 'unixtime')
         side = 'buy' if (trade['incomingOrderSide'] == 0) else 'sell'
         id = self.safe_string(trade, 'tid')
         price = self.safe_float(trade, 'px')
@@ -189,6 +190,8 @@ class flowbtc (Exchange):
             'price': price,
             'amount': amount,
             'cost': cost,
+            'takerOrMaker': None,
+            'fee': None,
         }
 
     def fetch_trades(self, symbol, since=None, limit=None, params={}):

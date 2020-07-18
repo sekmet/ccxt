@@ -8,9 +8,10 @@ import hashlib
 import math
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import AuthenticationError
+from ccxt.base.errors import ArgumentsRequired
 
 
-class ice3x (Exchange):
+class ice3x(Exchange):
 
     def describe(self):
         return self.deep_extend(super(ice3x, self).describe(), {
@@ -28,12 +29,9 @@ class ice3x (Exchange):
                 'fetchDepositAddress': True,
             },
             'urls': {
-                'logo': 'https://user-images.githubusercontent.com/1294454/38012176-11616c32-3269-11e8-9f05-e65cf885bb15.jpg',
+                'logo': 'https://user-images.githubusercontent.com/51840849/87460809-1dd06c00-c616-11ea-98ad-7d5e1cb7fcdd.jpg',
                 'api': 'https://ice3x.com/api',
-                'www': [
-                    'https://ice3x.com',
-                    'https://ice3x.co.za',
-                ],
+                'www': 'https://ice3x.com',  # 'https://ice3x.co.za',
                 'doc': 'https://ice3x.co.za/ice-cubed-bitcoin-exchange-api-documentation-1-june-2017',
                 'fees': [
                     'https://help.ice3.com/support/solutions/articles/11000033293-trading-fees',
@@ -78,8 +76,8 @@ class ice3x (Exchange):
             },
             'fees': {
                 'trading': {
-                    'maker': 0.01,
-                    'taker': 0.01,
+                    'maker': 0.005,
+                    'taker': 0.005,
                 },
             },
             'precision': {
@@ -119,11 +117,12 @@ class ice3x (Exchange):
                     },
                 },
                 'info': currency,
+                'fee': None,
             }
         return result
 
     def fetch_markets(self, params={}):
-        if not self.currencies_by_id:
+        if self.currencies_by_id is None:
             self.currencies = self.fetch_currencies()
             self.currencies_by_id = self.index_by(self.currencies, 'id')
         response = self.publicGetPairList(params)
@@ -148,6 +147,8 @@ class ice3x (Exchange):
                 'quoteId': quoteId,
                 'active': None,
                 'info': market,
+                'precision': self.precision,
+                'limits': self.limits,
             })
         return result
 
@@ -209,9 +210,9 @@ class ice3x (Exchange):
         }
         if limit is not None:
             type = self.safe_string(params, 'type')
-            if (type != 'ask') and(type != 'bid'):
+            if (type != 'ask') and (type != 'bid'):
                 # eslint-disable-next-line quotes
-                raise ExchangeError(self.id + " fetchOrderBook requires an exchange-specific extra 'type' param('bid' or 'ask') when used with a limit")
+                raise ArgumentsRequired(self.id + " fetchOrderBook requires an exchange-specific extra 'type' param('bid' or 'ask') when used with a limit")
             else:
                 request['items_per_page'] = limit
         response = self.publicGetOrderbookInfo(self.extend(request, params))
@@ -219,9 +220,7 @@ class ice3x (Exchange):
         return self.parse_order_book(orderbook, None, 'bids', 'asks', 'price', 'amount')
 
     def parse_trade(self, trade, market=None):
-        timestamp = self.safe_integer(trade, 'created')
-        if timestamp is not None:
-            timestamp *= 1000
+        timestamp = self.safe_timestamp(trade, 'created')
         price = self.safe_float(trade, 'price')
         amount = self.safe_float(trade, 'volume')
         cost = None
@@ -285,10 +284,10 @@ class ice3x (Exchange):
     def parse_order(self, order, market=None):
         pairId = self.safe_integer(order, 'pair_id')
         symbol = None
-        if pairId and not market and(pairId in list(self.marketsById.keys())):
+        if pairId and not market and (pairId in self.marketsById):
             market = self.marketsById[pairId]
             symbol = market['symbol']
-        timestamp = self.safe_integer(order, 'created') * 1000
+        timestamp = self.safe_timestamp(order, 'created')
         price = self.safe_float(order, 'price')
         amount = self.safe_float(order, 'volume')
         status = self.safe_integer(order, 'active')
@@ -310,6 +309,7 @@ class ice3x (Exchange):
                 fee['currency'] = market['quote']
         return {
             'id': self.safe_string(order, 'order_id'),
+            'clientOrderId': None,
             'datetime': self.iso8601(timestamp),
             'timestamp': timestamp,
             'lastTradeTimestamp': None,
@@ -325,6 +325,7 @@ class ice3x (Exchange):
             'trades': None,
             'fee': fee,
             'info': order,
+            'average': None,
         }
 
     def create_order(self, symbol, type, side, amount, price=None, params={}):

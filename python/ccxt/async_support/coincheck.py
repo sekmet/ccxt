@@ -5,10 +5,10 @@
 
 from ccxt.async_support.base.exchange import Exchange
 from ccxt.base.errors import ExchangeError
-from ccxt.base.errors import NotSupported
+from ccxt.base.errors import BadSymbol
 
 
-class coincheck (Exchange):
+class coincheck(Exchange):
 
     def describe(self):
         return self.deep_extend(super(coincheck, self).describe(), {
@@ -22,7 +22,7 @@ class coincheck (Exchange):
                 'fetchMyTrades': True,
             },
             'urls': {
-                'logo': 'https://user-images.githubusercontent.com/1294454/27766464-3b5c3c74-5ed9-11e7-840e-31b32968e1da.jpg',
+                'logo': 'https://user-images.githubusercontent.com/51840849/87182088-1d6d6380-c2ec-11ea-9c64-8ab9f9b289f5.jpg',
                 'api': 'https://coincheck.com/api',
                 'www': 'https://coincheck.com',
                 'doc': 'https://coincheck.com/documents/exchange/api',
@@ -117,7 +117,7 @@ class coincheck (Exchange):
         codes = list(self.currencies.keys())
         for i in range(0, len(codes)):
             code = codes[i]
-            currencyId = self.currencyId(code)
+            currencyId = self.currency_id(code)
             if currencyId in balances:
                 account = self.account()
                 reserved = currencyId + '_reserved'
@@ -182,6 +182,7 @@ class coincheck (Exchange):
                 symbol = base + '/' + quote
         return {
             'id': id,
+            'clientOrderId': None,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
             'lastTradeTimestamp': None,
@@ -196,23 +197,23 @@ class coincheck (Exchange):
             'cost': cost,
             'fee': None,
             'info': order,
+            'average': None,
+            'trades': None,
         }
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         if symbol != 'BTC/JPY':
-            raise NotSupported(self.id + ' fetchOrderBook() supports BTC/JPY only')
+            raise BadSymbol(self.id + ' fetchOrderBook() supports BTC/JPY only')
         await self.load_markets()
         response = await self.publicGetOrderBooks(params)
         return self.parse_order_book(response)
 
     async def fetch_ticker(self, symbol, params={}):
         if symbol != 'BTC/JPY':
-            raise NotSupported(self.id + ' fetchTicker() supports BTC/JPY only')
+            raise BadSymbol(self.id + ' fetchTicker() supports BTC/JPY only')
         await self.load_markets()
         ticker = await self.publicGetTicker(params)
-        timestamp = self.safe_integer(ticker, 'timestamp')
-        if timestamp is not None:
-            timestamp *= 1000
+        timestamp = self.safe_timestamp(ticker, 'timestamp')
         last = self.safe_float(ticker, 'last')
         return {
             'symbol': symbol,
@@ -314,7 +315,7 @@ class coincheck (Exchange):
 
     async def fetch_trades(self, symbol, since=None, limit=None, params={}):
         if symbol != 'BTC/JPY':
-            raise NotSupported(self.id + ' fetchTrades() supports BTC/JPY only')
+            raise BadSymbol(self.id + ' fetchTrades() supports BTC/JPY only')
         await self.load_markets()
         market = self.market(symbol)
         request = {

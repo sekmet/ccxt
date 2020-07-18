@@ -3,7 +3,7 @@
 //  ---------------------------------------------------------------------------
 
 const Exchange = require ('./base/Exchange');
-const { AddressPending, AuthenticationError, ExchangeError, NotSupported, PermissionDenied } = require ('./base/errors');
+const { AddressPending, AuthenticationError, ExchangeError, NotSupported, PermissionDenied, ArgumentsRequired } = require ('./base/errors');
 
 //  ---------------------------------------------------------------------------
 
@@ -544,10 +544,7 @@ module.exports = class buda extends Exchange {
             symbol = market['symbol'];
         }
         const type = this.safeString (order, 'price_type');
-        let side = this.safeString (order, 'type');
-        if (side !== undefined) {
-            side = side.toLowerCase ();
-        }
+        const side = this.safeStringLower (order, 'type');
         const status = this.parseOrderStatus (this.safeString (order, 'state'));
         const amount = parseFloat (order['original_amount'][0]);
         const remaining = parseFloat (order['amount'][0]);
@@ -566,6 +563,7 @@ module.exports = class buda extends Exchange {
         };
         return {
             'id': id,
+            'clientOrderId': undefined,
             'datetime': this.iso8601 (timestamp),
             'timestamp': timestamp,
             'lastTradeTimestamp': undefined,
@@ -581,6 +579,7 @@ module.exports = class buda extends Exchange {
             'trades': undefined,
             'fee': fee,
             'info': order,
+            'average': undefined,
         };
     }
 
@@ -693,7 +692,7 @@ module.exports = class buda extends Exchange {
     async fetchDeposits (code = undefined, since = undefined, limit = undefined, params = {}) {
         await this.loadMarkets ();
         if (code === undefined) {
-            throw new ExchangeError (this.id + ': fetchDeposits() requires a currency code argument');
+            throw new ArgumentsRequired (this.id + ': fetchDeposits() requires a currency code argument');
         }
         const currency = this.currency (code);
         const request = {
@@ -708,7 +707,7 @@ module.exports = class buda extends Exchange {
     async fetchWithdrawals (code = undefined, since = undefined, limit = undefined, params = {}) {
         await this.loadMarkets ();
         if (code === undefined) {
-            throw new ExchangeError (this.id + ': fetchDeposits() requires a currency code argument');
+            throw new ArgumentsRequired (this.id + ': fetchDeposits() requires a currency code argument');
         }
         const currency = this.currency (code);
         const request = {
@@ -772,7 +771,7 @@ module.exports = class buda extends Exchange {
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
 
-    handleErrors (code, reason, url, method, headers, body, response) {
+    handleErrors (code, reason, url, method, headers, body, response, requestHeaders, requestBody) {
         if (response === undefined) {
             return; // fallback to default error handler
         }
@@ -780,13 +779,9 @@ module.exports = class buda extends Exchange {
             const errorCode = this.safeString (response, 'code');
             const message = this.safeString (response, 'message', body);
             const feedback = this.id + ' ' + message;
-            const exceptions = this.exceptions;
             if (errorCode !== undefined) {
-                if (errorCode in exceptions) {
-                    throw new exceptions[errorCode] (feedback);
-                } else {
-                    throw new ExchangeError (feedback);
-                }
+                this.throwExactlyMatchedException (this.exceptions, errorCode, feedback);
+                throw new ExchangeError (feedback);
             }
         }
     }

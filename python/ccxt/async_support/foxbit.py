@@ -7,7 +7,7 @@ from ccxt.async_support.base.exchange import Exchange
 from ccxt.base.errors import ExchangeError
 
 
-class foxbit (Exchange):
+class foxbit(Exchange):
 
     def describe(self):
         return self.deep_extend(super(foxbit, self).describe(), {
@@ -21,7 +21,7 @@ class foxbit (Exchange):
             'rateLimit': 1000,
             'version': 'v1',
             'urls': {
-                'logo': 'https://user-images.githubusercontent.com/1294454/27991413-11b40d42-647f-11e7-91ee-78ced874dd09.jpg',
+                'logo': 'https://user-images.githubusercontent.com/51840849/87443320-01c0d080-c5fe-11ea-92e2-4ef56d32b026.jpg',
                 'api': {
                     'public': 'https://api.blinktrade.com/api',
                     'private': 'https://api.blinktrade.com/tapi',
@@ -140,9 +140,7 @@ class foxbit (Exchange):
         }
 
     def parse_trade(self, trade, market=None):
-        timestamp = self.safe_integer(trade, 'date')
-        if timestamp is not None:
-            timestamp *= 1000
+        timestamp = self.safe_timestamp(trade, 'date')
         id = self.safe_string(trade, 'tid')
         symbol = None
         if market is not None:

@@ -15,10 +15,11 @@ import hashlib
 import math
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import AuthenticationError
+from ccxt.base.errors import ArgumentsRequired
 from ccxt.base.errors import InvalidOrder
 
 
-class braziliex (Exchange):
+class braziliex(Exchange):
 
     def describe(self):
         return self.deep_extend(super(braziliex, self).describe(), {
@@ -32,6 +33,7 @@ class braziliex (Exchange):
                 'fetchOpenOrders': True,
                 'fetchMyTrades': True,
                 'fetchDepositAddress': True,
+                'fetchOrder': True,
             },
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/34703593-c4498674-f504-11e7-8d14-ff8e44fb78c1.jpg',
@@ -61,6 +63,7 @@ class braziliex (Exchange):
                         'sell',
                         'buy',
                         'cancel_order',
+                        'order_status',
                     ],
                 },
             },
@@ -400,6 +403,18 @@ class braziliex (Exchange):
         return self.parse_balance(result)
 
     def parse_order(self, order, market=None):
+        #
+        #     {
+        #         "order_number":"58ee441d05f8233fadabfb07",
+        #         "type":"buy",
+        #         "market":"ltc_btc",
+        #         "price":"0.01000000",
+        #         "amount":"0.00200000",
+        #         "total":"0.00002000",
+        #         "progress":"1.0000",
+        #         "date":"2017-03-12 15:13:33"
+        #     }
+        #
         symbol = None
         if market is None:
             marketId = self.safe_string(order, 'market')
@@ -421,12 +436,14 @@ class braziliex (Exchange):
             info = order['info']
         id = self.safe_string(order, 'order_number')
         fee = self.safe_value(order, 'fee')  # propagated from createOrder
+        status = 'closed' if (filledPercentage == 1.0) else 'open'
         return {
             'id': id,
+            'clientOrderId': None,
             'datetime': self.iso8601(timestamp),
             'timestamp': timestamp,
             'lastTradeTimestamp': None,
-            'status': 'open',
+            'status': status,
             'symbol': symbol,
             'type': 'limit',
             'side': order['type'],
@@ -438,6 +455,7 @@ class braziliex (Exchange):
             'trades': None,
             'fee': fee,
             'info': info,
+            'average': None,
         }
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
@@ -485,6 +503,18 @@ class braziliex (Exchange):
             'market': market['id'],
         }
         return await self.privatePostCancelOrder(self.extend(request, params))
+
+    async def fetch_order(self, id, symbol=None, params={}):
+        if symbol is None:
+            raise ArgumentsRequired(self.id + ' fetchOrder() requires a symbol argument')
+        await self.load_markets()
+        market = self.market(symbol)
+        request = {
+            'order_number': id,
+            'market': market['id'],
+        }
+        response = await self.privatePostOrderStatus(self.extend(request, params))
+        return self.parse_order(response, market)
 
     async def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
         await self.load_markets()
@@ -539,13 +569,13 @@ class braziliex (Exchange):
             headers = {
                 'Content-type': 'application/x-www-form-urlencoded',
                 'Key': self.apiKey,
-                'Sign': self.decode(signature),
+                'Sign': signature,
             }
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
     async def request(self, path, api='public', method='GET', params={}, headers=None, body=None):
         response = await self.fetch2(path, api, method, params, headers, body)
-        if (isinstance(response, basestring)) and len((response) < 1):
+        if (isinstance(response, basestring)) and (len(response) < 1):
             raise ExchangeError(self.id + ' returned empty response')
         if 'success' in response:
             success = self.safe_integer(response, 'success')

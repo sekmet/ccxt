@@ -23,10 +23,10 @@ module.exports = class btcbox extends Exchange {
                 'fetchTickers': false,
             },
             'urls': {
-                'logo': 'https://user-images.githubusercontent.com/1294454/31275803-4df755a8-aaa1-11e7-9abb-11ec2fad9f2d.jpg',
+                'logo': 'https://user-images.githubusercontent.com/51840849/87327317-98c55400-c53c-11ea-9a11-81f7d951cc74.jpg',
                 'api': 'https://www.btcbox.co.jp/api',
                 'www': 'https://www.btcbox.co.jp/',
-                'doc': 'https://www.btcbox.co.jp/help/asm',
+                'doc': 'https://blog.btcbox.jp/en/archives/8762',
                 'fees': 'https://support.btcbox.co.jp/hc/en-us/articles/360001235694-Fees-introduction',
             },
             'api': {
@@ -146,10 +146,7 @@ module.exports = class btcbox extends Exchange {
     }
 
     parseTrade (trade, market = undefined) {
-        let timestamp = this.safeInteger (trade, 'date');
-        if (timestamp !== undefined) {
-            timestamp *= 1000; // GMT time
-        }
+        const timestamp = this.safeTimestamp (trade, 'date');
         let symbol = undefined;
         if (market !== undefined) {
             symbol = market['symbol'];
@@ -245,7 +242,16 @@ module.exports = class btcbox extends Exchange {
 
     parseOrder (order, market = undefined) {
         //
-        // {"id":11,"datetime":"2014-10-21 10:47:20","type":"sell","price":42000,"amount_original":1.2,"amount_outstanding":1.2,"status":"closed","trades":[]}
+        //     {
+        //         "id":11,
+        //         "datetime":"2014-10-21 10:47:20",
+        //         "type":"sell",
+        //         "price":42000,
+        //         "amount_original":1.2,
+        //         "amount_outstanding":1.2,
+        //         "status":"closed",
+        //         "trades":[]
+        //     }
         //
         const id = this.safeString (order, 'id');
         const datetimeString = this.safeString (order, 'datetime');
@@ -284,6 +290,7 @@ module.exports = class btcbox extends Exchange {
         const side = this.safeString (order, 'type');
         return {
             'id': id,
+            'clientOrderId': undefined,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
             'lastTradeTimestamp': undefined,
@@ -299,6 +306,7 @@ module.exports = class btcbox extends Exchange {
             'trades': trades,
             'fee': undefined,
             'info': order,
+            'average': undefined,
         };
     }
 
@@ -376,7 +384,7 @@ module.exports = class btcbox extends Exchange {
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
 
-    handleErrors (httpCode, reason, url, method, headers, body, response) {
+    handleErrors (httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody) {
         if (response === undefined) {
             return; // resort to defaultErrorHandler
         }
@@ -388,12 +396,22 @@ module.exports = class btcbox extends Exchange {
         if (result === undefined || result === true) {
             return; // either public API (no error codes expected) or success
         }
-        const errorCode = this.safeValue (response, 'code');
-        const feedback = this.id + ' ' + this.json (response);
-        const exceptions = this.exceptions;
-        if (errorCode in exceptions) {
-            throw new exceptions[errorCode] (feedback);
-        }
+        const code = this.safeValue (response, 'code');
+        const feedback = this.id + ' ' + body;
+        this.throwExactlyMatchedException (this.exceptions, code, feedback);
         throw new ExchangeError (feedback); // unknown message
+    }
+
+    async request (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
+        let response = await this.fetch2 (path, api, method, params, headers, body);
+        if (typeof response === 'string') {
+            // sometimes the exchange returns whitespace prepended to json
+            response = this.strip (response);
+            if (!this.isJsonEncodedObject (response)) {
+                throw new ExchangeError (this.id + ' ' + response);
+            }
+            response = JSON.parse (response);
+        }
+        return response;
     }
 };

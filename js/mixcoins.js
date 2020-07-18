@@ -20,7 +20,7 @@ module.exports = class mixcoins extends Exchange {
                 'CORS': false,
             },
             'urls': {
-                'logo': 'https://user-images.githubusercontent.com/1294454/30237212-ed29303c-9535-11e7-8af8-fcd381cfa20c.jpg',
+                'logo': 'https://user-images.githubusercontent.com/51840849/87460810-1dd06c00-c616-11ea-9276-956f400d6ffa.jpg',
                 'api': 'https://mixcoins.com/api',
                 'www': 'https://mixcoins.com',
                 'doc': 'https://mixcoins.com/help/api/',
@@ -116,10 +116,7 @@ module.exports = class mixcoins extends Exchange {
     }
 
     parseTrade (trade, market = undefined) {
-        let timestamp = this.safeInteger (trade, 'date');
-        if (timestamp !== undefined) {
-            timestamp *= 1000;
-        }
+        const timestamp = this.safeTimestamp (trade, 'date');
         let symbol = undefined;
         if (market !== undefined) {
             symbol = market['symbol'];

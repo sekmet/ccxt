@@ -17,7 +17,7 @@ from ccxt.base.errors import OrderNotFound
 from ccxt.base.errors import InvalidNonce
 
 
-class bitso (Exchange):
+class bitso(Exchange):
 
     def describe(self):
         return self.deep_extend(super(bitso, self).describe(), {
@@ -27,18 +27,26 @@ class bitso (Exchange):
             'rateLimit': 2000,  # 30 requests per minute
             'version': 'v3',
             'has': {
-                'CORS': True,
+                'CORS': False,
                 'fetchMyTrades': True,
                 'fetchOpenOrders': True,
                 'fetchOrder': True,
             },
             'urls': {
-                'logo': 'https://user-images.githubusercontent.com/1294454/27766335-715ce7aa-5ed5-11e7-88a8-173a27bb30fe.jpg',
+                'logo': 'https://user-images.githubusercontent.com/51840849/87295554-11f98280-c50e-11ea-80d6-15b3bafa8cbf.jpg',
                 'api': 'https://api.bitso.com',
                 'www': 'https://bitso.com',
                 'doc': 'https://bitso.com/api_info',
                 'fees': 'https://bitso.com/fees?l=es',
                 'referral': 'https://bitso.com/?ref=itej',
+            },
+            'options': {
+                'precision': {
+                    'XRP': 6,
+                    'MXN': 2,
+                    'TUSD': 2,
+                },
+                'defaultPrecision': 8,
             },
             'api': {
                 'public': {
@@ -128,8 +136,8 @@ class bitso (Exchange):
                 },
             }
             precision = {
-                'amount': self.precision_from_string(market['minimum_amount']),
-                'price': self.precision_from_string(market['minimum_price']),
+                'amount': self.safe_integer(self.options['precision'], base, self.options['defaultPrecision']),
+                'price': self.safe_integer(self.options['precision'], quote, self.options['defaultPrecision']),
             }
             result.append({
                 'id': id,
@@ -141,6 +149,7 @@ class bitso (Exchange):
                 'info': market,
                 'limits': limits,
                 'precision': precision,
+                'active': None,
             })
         return result
 
@@ -267,7 +276,7 @@ class bitso (Exchange):
         # the don't support fetching trades starting from a date yet
         # use the `marker` extra param for that
         # self is not a typo, the variable name is 'marker'(don't confuse with 'market')
-        markerInParams = ('marker' in list(params.keys()))
+        markerInParams = ('marker' in params)
         # warn the user with an exception if the user wants to filter
         # starting from since timestamp, but does not set the trade id with an extra 'marker' param
         if (since is not None) and not markerInParams:
@@ -343,9 +352,11 @@ class bitso (Exchange):
         if amount is not None:
             if remaining is not None:
                 filled = amount - remaining
+        clientOrderId = self.safe_string(order, 'client_id')
         return {
             'info': order,
             'id': id,
+            'clientOrderId': clientOrderId,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
             'lastTradeTimestamp': None,
@@ -359,6 +370,8 @@ class bitso (Exchange):
             'filled': filled,
             'status': status,
             'fee': None,
+            'average': None,
+            'trades': None,
         }
 
     async def fetch_open_orders(self, symbol=None, since=None, limit=25, params={}):
@@ -367,7 +380,7 @@ class bitso (Exchange):
         # the don't support fetching trades starting from a date yet
         # use the `marker` extra param for that
         # self is not a typo, the variable name is 'marker'(don't confuse with 'market')
-        markerInParams = ('marker' in list(params.keys()))
+        markerInParams = ('marker' in params)
         # warn the user with an exception if the user wants to filter
         # starting from since timestamp, but does not set the trade id with an extra 'marker' param
         if (since is not None) and not markerInParams:
@@ -439,7 +452,7 @@ class bitso (Exchange):
             'BCH': 'Bcash',
             'LTC': 'Litecoin',
         }
-        method = methods[code] if (code in list(methods.keys())) else None
+        method = methods[code] if (code in methods) else None
         if method is None:
             raise ExchangeError(self.id + ' not valid withdraw coin: ' + code)
         request = {
@@ -477,7 +490,7 @@ class bitso (Exchange):
             }
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
-    def handle_errors(self, httpCode, reason, url, method, headers, body, response):
+    def handle_errors(self, httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody):
         if response is None:
             return  # fallback to default error handler
         if 'success' in response:
@@ -496,11 +509,8 @@ class bitso (Exchange):
                 if error is None:
                     raise ExchangeError(feedback)
                 code = self.safe_string(error, 'code')
-                exceptions = self.exceptions
-                if code in exceptions:
-                    raise exceptions[code](feedback)
-                else:
-                    raise ExchangeError(feedback)
+                self.throw_exactly_matched_exception(self.exceptions, code, feedback)
+                raise ExchangeError(feedback)
 
     async def request(self, path, api='public', method='GET', params={}, headers=None, body=None):
         response = await self.fetch2(path, api, method, params, headers, body)
